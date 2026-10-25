@@ -1,0 +1,345 @@
+<!doctype html>
+<html lang="en">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width,initial-scale=1,viewport-fit=cover">
+<meta name="theme-color" content="#111418">
+<title>Ear Translator</title>
+<style>
+  :root{
+    --bg:#f4f5f7; --card:#ffffff; --text:#14171c; --muted:#5c6470; --line:#dde1e6;
+    --go:#1f9d55; --stop:#d63c3c; --accent:#2563eb; --en:#2563eb; --ru:#c2410c;
+  }
+  @media (prefers-color-scheme: dark){
+    :root{ --bg:#111418; --card:#1b1f25; --text:#f1f3f5; --muted:#9aa3ad; --line:#2c323a;
+      --go:#22a85c; --stop:#e04848; --accent:#4f8cff; --en:#5b9bff; --ru:#ff8a4c; }
+  }
+  *{box-sizing:border-box}
+  html,body{margin:0;height:100%}
+  body{background:var(--bg);color:var(--text);font:18px/1.4 system-ui,-apple-system,Segoe UI,Roboto,sans-serif;
+    display:flex;flex-direction:column;align-items:center;padding:16px 16px calc(16px + env(safe-area-inset-bottom));}
+  .wrap{width:100%;max-width:520px;display:flex;flex-direction:column;gap:14px;flex:1}
+  header{display:flex;justify-content:space-between;align-items:center}
+  header h1{font-size:20px;margin:0;font-weight:700}
+  .icon-btn{background:var(--card);border:1px solid var(--line);color:var(--text);border-radius:12px;
+    font-size:24px;width:52px;height:52px;cursor:pointer}
+  #start{width:100%;aspect-ratio:2.2/1;max-height:200px;border:0;border-radius:28px;background:var(--go);color:#fff;
+    font-size:44px;font-weight:800;letter-spacing:1px;cursor:pointer;box-shadow:0 6px 18px rgba(0,0,0,.18)}
+  #start.on{background:var(--stop)}
+  #speaker{width:100%;border:3px solid var(--line);background:var(--card);color:var(--text);border-radius:22px;
+    padding:16px;font-size:26px;font-weight:700;cursor:pointer;display:flex;align-items:center;justify-content:center;gap:12px}
+  #speaker.listening{border-color:var(--go)}
+  #speaker small{display:block;font-size:15px;font-weight:500;color:var(--muted)}
+  .dot{width:16px;height:16px;border-radius:50%;background:var(--line);flex:none}
+  #speaker.listening .dot{background:var(--go);animation:pulse 1.2s infinite}
+  @keyframes pulse{50%{opacity:.25}}
+  .card{background:var(--card);border:1px solid var(--line);border-radius:18px;padding:14px 16px;min-height:84px}
+  .card .lbl{font-size:14px;color:var(--muted);margin-bottom:4px;font-weight:600}
+  .card .txt{font-size:24px;font-weight:600;word-wrap:break-word}
+  #status{font-size:15px;color:var(--muted);text-align:center;min-height:21px}
+  /* settings */
+  dialog{border:0;border-radius:20px;padding:0;width:min(520px,94vw);background:var(--card);color:var(--text)}
+  dialog::backdrop{background:rgba(0,0,0,.5)}
+  .set{padding:18px;display:flex;flex-direction:column;gap:16px}
+  .set h2{margin:0;font-size:22px}
+  .row{display:flex;flex-direction:column;gap:6px}
+  .row > span{font-weight:600}
+  .seg{display:flex;border:2px solid var(--line);border-radius:14px;overflow:hidden}
+  .seg button{flex:1;padding:14px 6px;font-size:18px;border:0;background:transparent;color:var(--text);cursor:pointer}
+  .seg button.sel{background:var(--accent);color:#fff;font-weight:700}
+  select,input[type=text]{font-size:18px;padding:12px;border-radius:12px;border:2px solid var(--line);
+    background:var(--bg);color:var(--text);width:100%}
+  .pair{display:flex;gap:10px}
+  .pair > *{flex:1}
+  .btn{padding:14px;font-size:18px;border-radius:14px;border:2px solid var(--line);background:var(--bg);color:var(--text);cursor:pointer}
+  .btn.primary{background:var(--accent);color:#fff;border-color:var(--accent);font-weight:700}
+  .note{font-size:14px;color:var(--muted)}
+  label.chk{display:flex;gap:10px;align-items:center;font-size:18px}
+  label.chk input{width:24px;height:24px}
+</style>
+</head>
+<body>
+<div class="wrap">
+  <header>
+    <h1>Ear Translator</h1>
+    <button class="icon-btn" id="openSet" aria-label="Settings">⚙️</button>
+  </header>
+
+  <button id="start">START</button>
+
+  <button id="speaker" aria-label="Tap to switch speaker">
+    <span class="dot"></span>
+    <span><span id="spkName">English speaking</span><small>Tap to switch speaker</small></span>
+  </button>
+
+  <div class="card"><div class="lbl" id="heardLbl">Heard</div><div class="txt" id="heard">—</div></div>
+  <div class="card"><div class="lbl" id="transLbl">Translation</div><div class="txt" id="trans">—</div></div>
+  <div id="status"></div>
+</div>
+
+<dialog id="set">
+  <div class="set">
+    <h2>Settings</h2>
+
+    <div class="row"><span>Languages</span>
+      <div class="pair"><select id="langA"></select><select id="langB"></select></div>
+    </div>
+
+    <div class="row"><span id="earLbl">English goes to which earbud?</span>
+      <div class="seg" id="earSeg">
+        <button data-v="L">LEFT</button><button data-v="R">RIGHT</button>
+      </div>
+      <div class="note" id="earNote"></div>
+    </div>
+
+    <div class="row"><span>Test earbuds</span>
+      <div class="pair"><button class="btn" id="testA">Test A</button><button class="btn" id="testB">Test B</button></div>
+      <div class="note">Each person should hear beeps only in their own earbud. If both hear both, turn off "Mono audio" in phone Accessibility settings.</div>
+    </div>
+
+    <label class="chk"><input type="checkbox" id="echo"> Speaker hears what the app heard</label>
+    <label class="chk"><input type="checkbox" id="auto"> Switch speaker automatically after each sentence</label>
+
+    <div class="row"><span>Google Cloud key (optional)</span>
+      <input type="text" id="key" placeholder="Paste key for best results" autocomplete="off" spellcheck="false">
+      <div class="note" id="keyNote"></div>
+    </div>
+
+    <button class="btn primary" id="closeSet">Done</button>
+  </div>
+</dialog>
+
+<script>
+(() => {
+  // ---------- languages ----------
+  const LANGS = {
+    en:{name:'English', sr:'en-US', tts:'en-US', flag:'🇬🇧', speaking:'English speaking'},
+    ru:{name:'Russian', sr:'ru-RU', tts:'ru-RU', flag:'🇷🇺', speaking:'Говорит по-русски'},
+    es:{name:'Spanish', sr:'es-ES', tts:'es-ES', flag:'🇪🇸', speaking:'Habla español'},
+    pl:{name:'Polish',  sr:'pl-PL', tts:'pl-PL', flag:'🇵🇱', speaking:'Mówi po polsku'},
+    uk:{name:'Ukrainian',sr:'uk-UA',tts:'uk-UA', flag:'🇺🇦', speaking:'Говорить українською'},
+    de:{name:'German',  sr:'de-DE', tts:'de-DE', flag:'🇩🇪', speaking:'Spricht Deutsch'},
+    fr:{name:'French',  sr:'fr-FR', tts:'fr-FR', flag:'🇫🇷', speaking:'Parle français'},
+    it:{name:'Italian', sr:'it-IT', tts:'it-IT', flag:'🇮🇹', speaking:'Parla italiano'},
+    pt:{name:'Portuguese',sr:'pt-PT',tts:'pt-PT',flag:'🇵🇹', speaking:'Fala português'},
+  };
+
+  // ---------- settings ----------
+  const DEF = {a:'en', b:'ru', earA:'L', echo:true, auto:true, key:''};
+  let S = {...DEF};
+  try { Object.assign(S, JSON.parse(localStorage.getItem('eartr') || '{}')); } catch(e){}
+  // key can be passed in the link: page.html#key=XXXX (so the phone needs no setup)
+  const m = location.hash.match(/key=([^&]+)/);
+  if (m) { S.key = decodeURIComponent(m[1]); history.replaceState(null,'',location.pathname+location.search); }
+  const save = () => { try { localStorage.setItem('eartr', JSON.stringify(S)); } catch(e){} };
+  save();
+
+  const $ = id => document.getElementById(id);
+  const ui = {start:$('start'), speaker:$('speaker'), spkName:$('spkName'), heard:$('heard'), trans:$('trans'),
+    heardLbl:$('heardLbl'), transLbl:$('transLbl'), status:$('status')};
+  const status = t => ui.status.textContent = t || '';
+
+  // current speaker: 0 = language A, 1 = language B
+  let cur = 0, running = false, busy = false, rec = null, finalText = '', wakeLock = null;
+  const langOf = i => LANGS[i === 0 ? S.a : S.b];
+  const codeOf = i => i === 0 ? S.a : S.b;
+  const panOf  = i => { const ear = i === 0 ? S.earA : (S.earA === 'L' ? 'R' : 'L'); return ear === 'L' ? -1 : 1; };
+
+  function renderSpeaker(){
+    const L = langOf(cur);
+    ui.spkName.textContent = L.flag + '  ' + L.speaking;
+    ui.speaker.classList.toggle('listening', running && !busy);
+  }
+
+  // ---------- audio (left / right routing) ----------
+  let ac = null;
+  function audio(){ if (!ac) ac = new (window.AudioContext || window.webkitAudioContext)(); if (ac.state === 'suspended') ac.resume(); return ac; }
+
+  function playBuffer(buf, pan){
+    return new Promise(res => {
+      const ctx = audio(), src = ctx.createBufferSource(), p = ctx.createStereoPanner();
+      src.buffer = buf; p.pan.value = pan; src.connect(p).connect(ctx.destination);
+      src.onended = res; src.start(ctx.currentTime + 0.3); // small delay lets Bluetooth wake up
+    });
+  }
+
+  function beeps(pan){
+    const ctx = audio(), t0 = ctx.currentTime + 0.2;
+    for (let k = 0; k < 3; k++){
+      const o = ctx.createOscillator(), g = ctx.createGain(), p = ctx.createStereoPanner();
+      o.frequency.value = 660; p.pan.value = pan; g.gain.value = 0;
+      o.connect(g).connect(p).connect(ctx.destination);
+      const t = t0 + k*0.35; g.gain.setValueAtTime(0, t); g.gain.linearRampToValueAtTime(.4, t+.02);
+      g.gain.linearRampToValueAtTime(0, t+.22); o.start(t); o.stop(t+.25);
+    }
+  }
+
+  const b64ToBuf = b64 => { const s = atob(b64), u = new Uint8Array(s.length); for (let i=0;i<s.length;i++) u[i]=s.charCodeAt(i); return u.buffer; };
+
+  let freeTtsOk = null; // unknown until tried
+  async function getClip(text, code){
+    const L = LANGS[code];
+    try {
+      if (S.key){
+        const r = await fetch('https://texttospeech.googleapis.com/v1/text:synthesize?key=' + encodeURIComponent(S.key), {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({input:{text}, voice:{languageCode:L.tts}, audioConfig:{audioEncoding:'MP3', speakingRate:0.92}})
+        });
+        if (!r.ok) throw new Error('TTS ' + r.status);
+        const j = await r.json();
+        return await audio().decodeAudioData(b64ToBuf(j.audioContent));
+      }
+      if (freeTtsOk === false || text.length > 190) return null;
+      const r = await fetch('https://translate.google.com/translate_tts?ie=UTF-8&client=tw-ob&tl=' + code + '&q=' + encodeURIComponent(text));
+      if (!r.ok) throw new Error('free TTS ' + r.status);
+      const buf = await audio().decodeAudioData(await r.arrayBuffer());
+      freeTtsOk = true; return buf;
+    } catch (e){
+      if (!S.key) freeTtsOk = false;
+      console.warn(e); return null;
+    }
+  }
+
+  // fallback: phone voice (plays in both earbuds, cannot be split)
+  function speakBoth(text, code){
+    return new Promise(res => {
+      if (!('speechSynthesis' in window)) return res();
+      const u = new SpeechSynthesisUtterance(text); u.lang = LANGS[code].tts; u.rate = 0.92;
+      const done = () => { clearTimeout(t); res(); };
+      const t = setTimeout(done, 4000 + text.length * 120);
+      u.onend = done; u.onerror = done; speechSynthesis.cancel(); speechSynthesis.speak(u);
+    });
+  }
+
+  // ---------- translation ----------
+  async function translate(text, from, to){
+    if (S.key){
+      try {
+        const r = await fetch('https://translation.googleapis.com/language/translate/v2?key=' + encodeURIComponent(S.key), {
+          method:'POST', headers:{'Content-Type':'application/json'},
+          body: JSON.stringify({q:text, source:from, target:to, format:'text'})
+        });
+        if (r.ok){ const j = await r.json(); return j.data.translations[0].translatedText; }
+      } catch(e){ console.warn(e); }
+    }
+    try {
+      const r = await fetch('https://translate.googleapis.com/translate_a/single?client=gtx&dt=t&sl=' + from + '&tl=' + to + '&q=' + encodeURIComponent(text));
+      if (r.ok){ const j = await r.json(); return j[0].map(x => x[0]).join(''); }
+    } catch(e){ console.warn(e); }
+    const r = await fetch('https://api.mymemory.translated.net/get?langpair=' + from + '|' + to + '&q=' + encodeURIComponent(text));
+    const j = await r.json(); return j.responseData.translatedText;
+  }
+
+  // ---------- speech recognition ----------
+  const SR = window.SpeechRecognition || window.webkitSpeechRecognition;
+
+  function listen(){
+    if (!running || busy) return;
+    finalText = '';
+    rec = new SR();
+    rec.lang = langOf(cur).sr; rec.interimResults = true; rec.continuous = false; rec.maxAlternatives = 1;
+    rec.onresult = e => {
+      let t = '';
+      for (let i = 0; i < e.results.length; i++){ t += e.results[i][0].transcript; if (e.results[i].isFinal) finalText = t; }
+      ui.heard.textContent = t;
+    };
+    rec.onerror = e => {
+      if (e.error === 'not-allowed' || e.error === 'service-not-allowed'){ stop(); status('Microphone blocked. Allow it in Chrome site settings.'); }
+      else if (e.error === 'network') status('No internet connection.');
+    };
+    rec.onend = () => {
+      rec = null;
+      if (!running) return;
+      const t = finalText.trim();
+      if (t) handle(t); else setTimeout(listen, 150);
+    };
+    try { rec.start(); renderSpeaker(); } catch(e){ setTimeout(listen, 400); }
+  }
+
+  async function handle(text){
+    busy = true; renderSpeaker();
+    const sp = cur, other = 1 - cur, from = codeOf(sp), to = codeOf(other);
+    ui.heardLbl.textContent = langOf(sp).flag + ' Heard'; ui.heard.textContent = text;
+    ui.transLbl.textContent = langOf(other).flag + ' Translation'; ui.trans.textContent = '…';
+    status('Translating…');
+    try {
+      const tr = await translate(text, from, to);
+      ui.trans.textContent = tr;
+      status('');
+      const [echoBuf, trBuf] = await Promise.all([S.echo ? getClip(text, from) : null, getClip(tr, to)]);
+      if (trBuf){
+        await Promise.all([echoBuf ? playBuffer(echoBuf, panOf(sp)) : null, playBuffer(trBuf, panOf(other))]);
+      } else {
+        status('Both-ears mode (add a Google key in ⚙️ to split earbuds)');
+        await speakBoth(tr, to);
+      }
+    } catch(e){
+      console.warn(e); ui.trans.textContent = '—'; status('Translation failed. Check internet.');
+    }
+    if (S.auto) cur = other;
+    busy = false; renderSpeaker();
+    if (running) setTimeout(listen, 250);
+  }
+
+  // ---------- start / stop ----------
+  async function start(){
+    if (!SR){ status('Use Google Chrome on Android.'); return; }
+    audio(); running = true;
+    ui.start.textContent = 'STOP'; ui.start.classList.add('on');
+    try { wakeLock = await navigator.wakeLock?.request('screen'); } catch(e){}
+    status(''); listen();
+  }
+  function stop(){
+    running = false; busy = false;
+    try { rec && rec.abort(); } catch(e){}
+    try { speechSynthesis.cancel(); } catch(e){}
+    ui.start.textContent = 'START'; ui.start.classList.remove('on');
+    try { wakeLock && wakeLock.release(); } catch(e){} wakeLock = null;
+    renderSpeaker();
+  }
+  ui.start.onclick = () => running ? stop() : start();
+  document.addEventListener('visibilitychange', async () => {
+    if (document.visibilityState === 'visible' && running){ try { wakeLock = await navigator.wakeLock?.request('screen'); } catch(e){} }
+  });
+
+  ui.speaker.onclick = () => {
+    if (busy) return;
+    cur = 1 - cur; renderSpeaker();
+    if (running && rec){ rec.onend = null; try { rec.abort(); } catch(e){} rec = null; setTimeout(listen, 200); }
+  };
+
+  // ---------- settings UI ----------
+  const dlg = $('set');
+  function fillSelect(sel, val){
+    sel.innerHTML = Object.entries(LANGS).map(([k,v]) => `<option value="${k}">${v.flag} ${v.name}</option>`).join('');
+    sel.value = val;
+  }
+  function renderSettings(){
+    fillSelect($('langA'), S.a); fillSelect($('langB'), S.b);
+    $('earLbl').textContent = LANGS[S.a].name + ' goes to which earbud?';
+    $('earNote').textContent = LANGS[S.b].name + ' goes to the ' + (S.earA === 'L' ? 'RIGHT' : 'LEFT') + ' earbud.';
+    [...$('earSeg').children].forEach(b => b.classList.toggle('sel', b.dataset.v === S.earA));
+    $('testA').textContent = 'Test ' + LANGS[S.a].name + ' ear';
+    $('testB').textContent = 'Test ' + LANGS[S.b].name + ' ear';
+    $('echo').checked = S.echo; $('auto').checked = S.auto; $('key').value = S.key;
+    $('keyNote').textContent = S.key ? 'Key saved. Earbuds get separate languages.'
+      : 'Without a key the app still translates, but may play the voice in both earbuds.';
+  }
+  $('openSet').onclick = () => { renderSettings(); dlg.showModal(); };
+  $('closeSet').onclick = () => { dlg.close(); };
+  dlg.addEventListener('close', () => { save(); renderSpeaker(); });
+  $('earSeg').onclick = e => { const v = e.target.dataset.v; if (v){ S.earA = v; save(); renderSettings(); } };
+  $('langA').onchange = e => { S.a = e.target.value; if (S.a === S.b) S.b = S.a === 'en' ? 'ru' : 'en'; save(); renderSettings(); };
+  $('langB').onchange = e => { S.b = e.target.value; if (S.a === S.b) S.a = S.b === 'en' ? 'ru' : 'en'; save(); renderSettings(); };
+  $('echo').onchange = e => { S.echo = e.target.checked; save(); };
+  $('auto').onchange = e => { S.auto = e.target.checked; save(); };
+  $('key').onchange = e => { S.key = e.target.value.trim(); freeTtsOk = null; save(); renderSettings(); };
+  $('testA').onclick = () => beeps(panOf(0));
+  $('testB').onclick = () => beeps(panOf(1));
+
+  renderSpeaker();
+  if (!SR) status('Open this page in Google Chrome on Android.');
+})();
+</script>
+</body>
+</html>
